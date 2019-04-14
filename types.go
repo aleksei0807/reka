@@ -1,13 +1,17 @@
 package reka
 
+import "sync"
+
 type node struct {
-	prev   *node
+	prev *node
+	sync.RWMutex
 	childs []*node
 
 	method func(interface{}) (interface{}, *action)
 }
 
 type tree struct {
+	sync.RWMutex
 	childs []*node
 }
 
@@ -16,10 +20,9 @@ type Stream struct {
 }
 
 type Chain struct {
-	stream   *Stream
+	stream *Stream
+	sync.Mutex
 	prevNode *node
-
-	prevValue interface{}
 }
 
 type action struct {

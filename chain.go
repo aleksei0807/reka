@@ -12,12 +12,14 @@ func (chain *Chain) addMethod(
 ) *Chain {
 	var node = &node{method: method(cb)}
 
+	chain.Lock()
 	if chain.prevNode == nil {
 		chain.stream.chains.childs = append(chain.stream.chains.childs, node)
 	} else {
 		node.prev = chain.prevNode
 		chain.prevNode.childs = append(chain.prevNode.childs, node)
 	}
+	chain.Unlock()
 
 	newChain := Chain{stream: chain.stream, prevNode: node}
 
