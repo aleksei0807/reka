@@ -2,13 +2,11 @@ package reka
 
 import (
 	"time"
-
-	"github.com/apex/log"
 )
 
 func (chain *Chain) addMethod(
-	method func(func(interface{}) interface{}) func(interface{}) (interface{}, *action),
-	cb func(interface{}) interface{},
+	method func(interface{}) func(interface{}) (interface{}, *action),
+	cb interface{},
 ) *Chain {
 	var node = &node{method: method(cb)}
 
@@ -26,26 +24,26 @@ func (chain *Chain) addMethod(
 	return &newChain
 }
 
-func defaultMethod(cb func(interface{}) interface{}) func(interface{}) (interface{}, *action) {
+func defaultMethod(cb interface{}) func(interface{}) (interface{}, *action) {
 	return func(value interface{}) (interface{}, *action) {
-		return cb(value), &action{}
+		return call(cb, value), &action{}
 	}
 }
 
-func filterMethod(cb func(interface{}) interface{}) func(interface{}) (interface{}, *action) {
+func filterMethod(cb interface{}) func(interface{}) (interface{}, *action) {
 	return func(value interface{}) (interface{}, *action) {
 		action := &action{}
-		if !cb(value).(bool) {
-			action.actionType = "stop"
+		if !call(cb, value).(bool) {
+			action.actionType = stop
 		}
 
 		return value, action
 	}
 }
 
-func delayMethod(cb func(interface{}) interface{}) func(interface{}) (interface{}, *action) {
+func delayMethod(cb interface{}) func(interface{}) (interface{}, *action) {
 	return func(value interface{}) (interface{}, *action) {
-		data := cb(value).(*specificValue)
+		data := call(cb, value).(*specificValue)
 
 		return data.value, data.action
 	}
@@ -53,7 +51,7 @@ func delayMethod(cb func(interface{}) interface{}) func(interface{}) (interface{
 
 func (chain *Chain) Log() *Chain {
 	logCallback := func(value interface{}) interface{} {
-		log.WithField("value", value).Info("Reka log")
+		chain.stream.Logger.WithField("value", value).Debug("Reka log")
 
 		return value
 	}
@@ -63,7 +61,7 @@ func (chain *Chain) Log() *Chain {
 
 func (chain *Chain) Logf(msg string, v ...interface{}) *Chain {
 	logfCallback := func(value interface{}) interface{} {
-		log.WithField("value", value).Infof(msg, v...)
+		chain.stream.Logger.WithField("value", value).Debugf(msg, v...)
 
 		return value
 	}
@@ -71,19 +69,19 @@ func (chain *Chain) Logf(msg string, v ...interface{}) *Chain {
 	return chain.addMethod(defaultMethod, logfCallback)
 }
 
-func (chain *Chain) Map(cb func(interface{}) interface{}) *Chain {
+func (chain *Chain) Map(cb interface{}) *Chain {
 	return chain.addMethod(defaultMethod, cb)
 }
 
-func (chain *Chain) Filter(cb func(interface{}) interface{}) *Chain {
+func (chain *Chain) Filter(cb interface{}) *Chain {
 	return chain.addMethod(filterMethod, cb)
 }
 
-func (chain *Chain) Diff(cb func(interface{}, interface{}) interface{}, seed interface{}) *Chain {
+func (chain *Chain) Diff(cb interface{}, seed interface{}) *Chain {
 	prevValue := seed
 
 	diffCallback := func(next interface{}) interface{} {
-		value := cb(prevValue, next)
+		value := call(cb, prevValue, next)
 		prevValue = next
 
 		return value
@@ -92,11 +90,11 @@ func (chain *Chain) Diff(cb func(interface{}, interface{}) interface{}, seed int
 	return chain.addMethod(defaultMethod, diffCallback)
 }
 
-func (chain *Chain) Scan(cb func(interface{}, interface{}) interface{}, seed interface{}) *Chain {
+func (chain *Chain) Scan(cb interface{}, seed interface{}) *Chain {
 	prevValue := seed
 
 	scanCallback := func(next interface{}) interface{} {
-		value := cb(prevValue, next)
+		value := call(cb, prevValue, next)
 		prevValue = value
 
 		return value
@@ -108,7 +106,7 @@ func (chain *Chain) Scan(cb func(interface{}, interface{}) interface{}, seed int
 func (chain *Chain) Delay(wait time.Duration) *Chain {
 	delayCallback := func(value interface{}) interface{} {
 		return &specificValue{
-			action: &action{actionType: "delay", data: wait},
+			action: &action{actionType: delay, data: wait},
 			value:  value,
 		}
 	}

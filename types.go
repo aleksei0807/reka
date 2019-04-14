@@ -1,6 +1,10 @@
 package reka
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/apex/log"
+)
 
 type node struct {
 	prev *node
@@ -17,6 +21,8 @@ type tree struct {
 
 type Stream struct {
 	chains *tree
+
+	Logger *log.Logger
 }
 
 type Chain struct {
@@ -25,8 +31,16 @@ type Chain struct {
 	prevNode *node
 }
 
+type actionType uint8
+
+const (
+	undefined actionType = iota
+	stop
+	delay
+)
+
 type action struct {
-	actionType string
+	actionType actionType
 	data       interface{}
 }
 

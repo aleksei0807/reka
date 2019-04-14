@@ -1,6 +1,8 @@
 package reka
 
-import "time"
+import (
+	"time"
+)
 
 func (stream *Stream) OnValues() *Chain {
 	chain := Chain{stream: stream}
@@ -9,8 +11,8 @@ func (stream *Stream) OnValues() *Chain {
 }
 
 func forEach(arr []*node, firstValue interface{}, action *action) {
-	if action.actionType != "stop" {
-		if action.actionType == "delay" {
+	if action.actionType != stop {
+		if action.actionType == delay {
 			time.Sleep(action.data.(time.Duration))
 		}
 
