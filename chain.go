@@ -7,7 +7,7 @@ import (
 func (chain *Chain) addMethod(
 	method func(interface{}) func(interface{}) (interface{}, *action),
 	cb interface{},
-) *Chain {
+) *node {
 	var node = &node{method: method(cb)}
 
 	chain.Lock()
@@ -19,14 +19,24 @@ func (chain *Chain) addMethod(
 	}
 	chain.Unlock()
 
-	newChain := Chain{stream: chain.stream, prevNode: node}
+	return node
+}
 
-	return &newChain
+func (chain *Chain) createNewChain(node *node) *Chain {
+	return &Chain{stream: chain.stream, prevNode: node}
 }
 
 func defaultMethod(cb interface{}) func(interface{}) (interface{}, *action) {
 	return func(value interface{}) (interface{}, *action) {
 		return call(cb, value), &action{}
+	}
+}
+
+func actionMethod(cb interface{}) func(interface{}) (interface{}, *action) {
+	return func(value interface{}) (interface{}, *action) {
+		data := call(cb, value).(*specificValue)
+
+		return data.value, data.action
 	}
 }
 
@@ -41,14 +51,6 @@ func filterMethod(cb interface{}) func(interface{}) (interface{}, *action) {
 	}
 }
 
-func delayMethod(cb interface{}) func(interface{}) (interface{}, *action) {
-	return func(value interface{}) (interface{}, *action) {
-		data := call(cb, value).(*specificValue)
-
-		return data.value, data.action
-	}
-}
-
 func (chain *Chain) Log() *Chain {
 	logCallback := func(value interface{}) interface{} {
 		chain.stream.Logger.WithField("value", value).Debug("Reka log")
@@ -56,7 +58,7 @@ func (chain *Chain) Log() *Chain {
 		return value
 	}
 
-	return chain.addMethod(defaultMethod, logCallback)
+	return chain.createNewChain(chain.addMethod(defaultMethod, logCallback))
 }
 
 func (chain *Chain) Logf(msg string, v ...interface{}) *Chain {
@@ -66,15 +68,15 @@ func (chain *Chain) Logf(msg string, v ...interface{}) *Chain {
 		return value
 	}
 
-	return chain.addMethod(defaultMethod, logfCallback)
+	return chain.createNewChain(chain.addMethod(defaultMethod, logfCallback))
 }
 
 func (chain *Chain) Map(cb interface{}) *Chain {
-	return chain.addMethod(defaultMethod, cb)
+	return chain.createNewChain(chain.addMethod(defaultMethod, cb))
 }
 
 func (chain *Chain) Filter(cb interface{}) *Chain {
-	return chain.addMethod(filterMethod, cb)
+	return chain.createNewChain(chain.addMethod(filterMethod, cb))
 }
 
 func (chain *Chain) Diff(cb interface{}, seed interface{}) *Chain {
@@ -87,7 +89,7 @@ func (chain *Chain) Diff(cb interface{}, seed interface{}) *Chain {
 		return value
 	}
 
-	return chain.addMethod(defaultMethod, diffCallback)
+	return chain.createNewChain(chain.addMethod(defaultMethod, diffCallback))
 }
 
 func (chain *Chain) Scan(cb interface{}, seed interface{}) *Chain {
@@ -100,7 +102,7 @@ func (chain *Chain) Scan(cb interface{}, seed interface{}) *Chain {
 		return value
 	}
 
-	return chain.addMethod(defaultMethod, scanCallback)
+	return chain.createNewChain(chain.addMethod(defaultMethod, scanCallback))
 }
 
 func (chain *Chain) Delay(wait time.Duration) *Chain {
@@ -111,5 +113,35 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 		}
 	}
 
-	return chain.addMethod(delayMethod, delayCallback)
+	return chain.createNewChain(chain.addMethod(actionMethod, delayCallback))
+}
+
+func (chain *Chain) Shard(count uint64, rest ...interface{}) []*Chain {
+	var iter uint64
+
+	shardCallback := func(value interface{}) interface{} {
+		var currentShard uint64
+		if len(rest) != 0 {
+			currentShard = call(rest[0], iter, value).(uint64)
+		} else {
+			currentShard = iter % count
+		}
+
+		iter++
+
+		return &specificValue{
+			action: &action{actionType: shard, data: currentShard},
+			value:  value,
+		}
+	}
+
+	node := chain.addMethod(actionMethod, shardCallback)
+
+	chains := make([]*Chain, 0)
+	intCount := int(count)
+	for i := 0; i < intCount; i++ {
+		chains = append(chains, &Chain{stream: chain.stream, prevNode: node})
+	}
+
+	return chains
 }

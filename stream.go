@@ -16,17 +16,31 @@ func forEach(arr []*node, firstValue interface{}, action *action) {
 			time.Sleep(action.data.(time.Duration))
 		}
 
-		value := firstValue
+		if action.actionType == shard {
+			currentShard := action.data.(uint64)
 
-		for _, child := range arr {
-			child.RLock()
-			v, newAction := child.method(firstValue)
-			value = v
+			if len(arr) > int(currentShard) {
+				child := arr[currentShard]
+				child.RLock()
+				v, newAction := child.method(firstValue)
 
-			if len(child.childs) != 0 {
-				forEach(child.childs, value, newAction)
+				if len(child.childs) != 0 {
+					forEach(child.childs, v, newAction)
+				}
+				child.RUnlock()
 			}
-			child.RUnlock()
+		} else {
+			value := firstValue
+			for _, child := range arr {
+				child.RLock()
+				v, newAction := child.method(firstValue)
+				value = v
+
+				if len(child.childs) != 0 {
+					forEach(child.childs, value, newAction)
+				}
+				child.RUnlock()
+			}
 		}
 	}
 }

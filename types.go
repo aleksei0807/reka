@@ -37,6 +37,7 @@ const (
 	undefined actionType = iota
 	stop
 	delay
+	shard
 )
 
 type action struct {
