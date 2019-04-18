@@ -7,7 +7,7 @@ import (
 	"github.com/apex/log/handlers/cli"
 )
 
-func CreateStream() *Stream {
+func New() *Stream {
 	logger := &log.Logger{
 		Handler: cli.New(os.Stdout),
 	}

@@ -1,7 +1,9 @@
 package reka
 
 import (
+	"container/list"
 	"sync"
+	"time"
 
 	"github.com/apex/log"
 )
@@ -23,6 +25,9 @@ type Stream struct {
 	chains *tree
 
 	Logger *log.Logger
+
+	sync.RWMutex
+	delayValues []syncList
 }
 
 type Chain struct {
@@ -48,4 +53,15 @@ type action struct {
 type specificValue struct {
 	action *action
 	value  interface{}
+}
+
+type syncList struct {
+	*sync.RWMutex
+	*list.List
+}
+
+type delayData struct {
+	wait   time.Duration
+	isInit bool
+	list   syncList
 }

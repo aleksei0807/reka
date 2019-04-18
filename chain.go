@@ -1,6 +1,10 @@
 package reka
 
 import (
+	"container/list"
+	"reflect"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,8 +18,10 @@ func (chain *Chain) addMethod(
 	if chain.prevNode == nil {
 		chain.stream.chains.childs = append(chain.stream.chains.childs, node)
 	} else {
+		chain.prevNode.Lock()
 		node.prev = chain.prevNode
 		chain.prevNode.childs = append(chain.prevNode.childs, node)
+		chain.prevNode.Unlock()
 	}
 	chain.Unlock()
 
@@ -106,28 +112,74 @@ func (chain *Chain) Scan(cb interface{}, seed interface{}) *Chain {
 }
 
 func (chain *Chain) Delay(wait time.Duration) *Chain {
+	list := syncList{
+		RWMutex: &sync.RWMutex{},
+		List:    list.New(),
+	}
+	chain.stream.Lock()
+	chain.stream.delayValues = append(chain.stream.delayValues, list)
+	chain.stream.Unlock()
+
+	isInit := false
+
 	delayCallback := func(value interface{}) interface{} {
-		return &specificValue{
-			action: &action{actionType: delay, data: wait},
+		v := &specificValue{
+			action: &action{actionType: delay, data: &delayData{list: list, isInit: isInit, wait: wait}},
 			value:  value,
+		}
+
+		isInit = true
+
+		return v
+	}
+
+	newNode := chain.addMethod(actionMethod, delayCallback)
+
+	return chain.createNewChain(newNode)
+}
+
+func (chain *Chain) Shard(count uint64, shardFunc ...interface{}) []*Chain {
+	var iter uint64
+
+	detectShard := func(currIter uint64, value interface{}) uint64 {
+		return currIter % count
+	}
+
+	if len(shardFunc) > 0 {
+		restV := reflect.ValueOf(shardFunc[0])
+
+		if restV.Kind() != reflect.Func {
+			panic("shardFunc must be callable, but got " + restV.Kind().String())
+		}
+
+		restT := restV.Type()
+
+		if restT.In(0).Kind() != reflect.Uint64 {
+			panic("shardFunc must accept currentIteration (uint64) as a first argument")
+		}
+
+		if restT.Out(0).Kind() != reflect.Uint64 {
+			panic("shardFunc must return shardNumber (uint64)")
+		}
+
+		switch restT.NumIn() {
+		case 1:
+			detectShard = func(currIter uint64, value interface{}) uint64 {
+				return call(shardFunc[0], currIter).(uint64)
+			}
+		case 2:
+			detectShard = func(currIter uint64, value interface{}) uint64 {
+				return call(shardFunc[0], currIter, value).(uint64)
+			}
+		default:
+			panic("shardFunc must accept 1 or 2 parameters: currentIteration (uint64) and value (optional, interface{})")
 		}
 	}
 
-	return chain.createNewChain(chain.addMethod(actionMethod, delayCallback))
-}
-
-func (chain *Chain) Shard(count uint64, rest ...interface{}) []*Chain {
-	var iter uint64
-
 	shardCallback := func(value interface{}) interface{} {
-		var currentShard uint64
-		if len(rest) != 0 {
-			currentShard = call(rest[0], iter, value).(uint64)
-		} else {
-			currentShard = iter % count
-		}
+		currentShard := detectShard(atomic.LoadUint64(&iter), value)
 
-		iter++
+		atomic.AddUint64(&iter, 1)
 
 		return &specificValue{
 			action: &action{actionType: shard, data: currentShard},
@@ -138,8 +190,7 @@ func (chain *Chain) Shard(count uint64, rest ...interface{}) []*Chain {
 	node := chain.addMethod(actionMethod, shardCallback)
 
 	chains := make([]*Chain, 0)
-	intCount := int(count)
-	for i := 0; i < intCount; i++ {
+	for i := uint64(0); i < count; i++ {
 		chains = append(chains, &Chain{stream: chain.stream, prevNode: node})
 	}
 
