@@ -43,6 +43,37 @@ func (stream *Stream) delayLoop(arr []*node, wait time.Duration, values syncList
 	}
 }
 
+func (stream *Stream) throttleLoop(arr []*node, wait time.Duration, values syncList) {
+	for {
+		if runtime.GOMAXPROCS(0) == 1 {
+			runtime.Gosched()
+		}
+		time.Sleep(wait)
+		values.RLock()
+		listLen := values.Len()
+		values.RUnlock()
+		if listLen > 0 {
+			values.RLock()
+			x := values.Front().Value
+			values.RUnlock()
+			for _, child := range arr {
+				child.RLock()
+				v, newAction := child.method(x)
+
+				childs := child.childs
+				child.RUnlock()
+
+				if len(childs) > 0 {
+					stream.forEach(childs, v, newAction)
+				}
+			}
+			values.Lock()
+			values.Remove(values.Front())
+			values.Unlock()
+		}
+	}
+}
+
 func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 	if action.actionType != actStop {
 		switch action.actionType {
@@ -72,7 +103,7 @@ func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 		case actThrottle:
 			actionData := action.data.(*delayData)
 			if atomic.LoadInt32(&actionData.isInit) == 0 {
-				go stream.delayLoop(arr, actionData.wait, actionData.list)
+				go stream.throttleLoop(arr, actionData.wait, actionData.list)
 			}
 			actionData.list.Lock()
 			actionData.list.Init()
