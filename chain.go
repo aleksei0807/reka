@@ -128,7 +128,7 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 			value:  value,
 		}
 
-		atomic.AddInt32(&isInit, 1)
+		atomic.SwapInt32(&isInit, 1)
 
 		return v
 	}
