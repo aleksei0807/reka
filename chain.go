@@ -50,7 +50,7 @@ func filterMethod(cb interface{}) func(interface{}) (interface{}, *action) {
 	return func(value interface{}) (interface{}, *action) {
 		action := &action{}
 		if !call(cb, value).(bool) {
-			action.actionType = stop
+			action.actionType = actStop
 		}
 
 		return value, action
@@ -124,7 +124,7 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 
 	delayCallback := func(value interface{}) interface{} {
 		v := &specificValue{
-			action: &action{actionType: delay, data: &delayData{list: list, isInit: atomic.LoadInt32(&isInit), wait: wait}},
+			action: &action{actionType: actDelay, data: &delayData{list: list, isInit: atomic.LoadInt32(&isInit), wait: wait}},
 			value:  value,
 		}
 
@@ -182,7 +182,7 @@ func (chain *Chain) Shard(count uint64, shardFunc ...interface{}) []*Chain {
 		atomic.AddUint64(&iter, 1)
 
 		return &specificValue{
-			action: &action{actionType: shard, data: currentShard},
+			action: &action{actionType: actShard, data: currentShard},
 			value:  value,
 		}
 	}

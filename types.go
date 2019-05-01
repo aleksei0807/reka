@@ -38,10 +38,10 @@ type Chain struct {
 type actionType uint8
 
 const (
-	undefined actionType = iota
-	stop
-	delay
-	shard
+	actUndefined actionType = iota
+	actStop
+	actDelay
+	actShard
 )
 
 type action struct {

@@ -44,9 +44,9 @@ func (stream *Stream) delayLoop(arr []*node, wait time.Duration, values syncList
 }
 
 func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
-	if action.actionType != stop {
+	if action.actionType != actStop {
 		switch action.actionType {
-		case shard:
+		case actShard:
 			currentShard := action.data.(uint64)
 
 			if len(arr) > int(currentShard) {
@@ -60,7 +60,7 @@ func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 				child.RUnlock()
 			}
 
-		case delay:
+		case actDelay:
 			actionData := action.data.(*delayData)
 			if atomic.LoadInt32(&actionData.isInit) == 0 {
 				go stream.delayLoop(arr, actionData.wait, actionData.list)
