@@ -40,6 +40,7 @@ const (
 	actUndefined actionType = iota
 	actStop
 	actDelay
+	actThrottle
 	actShard
 )
 

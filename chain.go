@@ -135,6 +135,30 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 	return chain.createNewChain(newNode)
 }
 
+func (chain *Chain) Throttle(wait time.Duration) *Chain {
+	list := syncList{
+		RWMutex: &sync.RWMutex{},
+		List:    list.New(),
+	}
+
+	var isInit int32
+
+	throttleCallback := func(value interface{}) interface{} {
+		v := &specificValue{
+			action: &action{actionType: actThrottle, data: &delayData{list: list, isInit: atomic.LoadInt32(&isInit), wait: wait}},
+			value:  value,
+		}
+
+		atomic.SwapInt32(&isInit, 1)
+
+		return v
+	}
+
+	newNode := chain.addMethod(actionMethod, throttleCallback)
+
+	return chain.createNewChain(newNode)
+}
+
 func (chain *Chain) Shard(count uint64, shardFunc ...interface{}) []*Chain {
 	var iter uint64
 

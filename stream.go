@@ -69,6 +69,16 @@ func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 			actionData.list.PushBack(value)
 			actionData.list.Unlock()
 
+		case actThrottle:
+			actionData := action.data.(*delayData)
+			if atomic.LoadInt32(&actionData.isInit) == 0 {
+				go stream.delayLoop(arr, actionData.wait, actionData.list)
+			}
+			actionData.list.Lock()
+			actionData.list.Init()
+			actionData.list.PushFront(value)
+			actionData.list.Unlock()
+
 		default:
 			for _, child := range arr {
 				child.RLock()
