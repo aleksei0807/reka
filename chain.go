@@ -116,9 +116,6 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 		RWMutex: &sync.RWMutex{},
 		List:    list.New(),
 	}
-	chain.Lock()
-	chain.delayValues = append(chain.delayValues, list)
-	chain.Unlock()
 
 	var isInit int32
 

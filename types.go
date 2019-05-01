@@ -31,8 +31,7 @@ type Chain struct {
 	stream *Stream
 
 	sync.RWMutex
-	prevNode    *node
-	delayValues []syncList
+	prevNode *node
 }
 
 type actionType uint8
