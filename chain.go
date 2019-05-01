@@ -116,19 +116,19 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 		RWMutex: &sync.RWMutex{},
 		List:    list.New(),
 	}
-	chain.stream.Lock()
-	chain.stream.delayValues = append(chain.stream.delayValues, list)
-	chain.stream.Unlock()
+	chain.Lock()
+	chain.delayValues = append(chain.delayValues, list)
+	chain.Unlock()
 
-	isInit := false
+	var isInit int32
 
 	delayCallback := func(value interface{}) interface{} {
 		v := &specificValue{
-			action: &action{actionType: delay, data: &delayData{list: list, isInit: isInit, wait: wait}},
+			action: &action{actionType: delay, data: &delayData{list: list, isInit: atomic.LoadInt32(&isInit), wait: wait}},
 			value:  value,
 		}
 
-		isInit = true
+		atomic.AddInt32(&isInit, 1)
 
 		return v
 	}

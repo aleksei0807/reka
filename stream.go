@@ -2,6 +2,7 @@ package reka
 
 import (
 	"runtime"
+	"sync/atomic"
 	"time"
 )
 
@@ -61,7 +62,7 @@ func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 
 		case delay:
 			actionData := action.data.(*delayData)
-			if !actionData.isInit {
+			if atomic.LoadInt32(&actionData.isInit) == 0 {
 				go stream.delayLoop(arr, actionData.wait, actionData.list)
 			}
 			actionData.list.Lock()

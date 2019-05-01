@@ -25,15 +25,14 @@ type Stream struct {
 	chains *tree
 
 	Logger *log.Logger
-
-	sync.RWMutex
-	delayValues []syncList
 }
 
 type Chain struct {
 	stream *Stream
-	sync.Mutex
-	prevNode *node
+
+	sync.RWMutex
+	prevNode    *node
+	delayValues []syncList
 }
 
 type actionType uint8
@@ -62,6 +61,6 @@ type syncList struct {
 
 type delayData struct {
 	wait   time.Duration
-	isInit bool
+	isInit int32
 	list   syncList
 }
