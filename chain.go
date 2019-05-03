@@ -112,20 +112,18 @@ func (chain *Chain) Scan(cb interface{}, seed interface{}) *Chain {
 }
 
 func (chain *Chain) Delay(wait time.Duration) *Chain {
-	list := syncList{
+	list := &syncList{
 		RWMutex: &sync.RWMutex{},
 		List:    list.New(),
 	}
 
-	var isInit int32
+	data := &delayData{list: list, wait: wait}
 
 	delayCallback := func(value interface{}) interface{} {
 		v := &specificValue{
-			action: &action{actionType: actDelay, data: &delayData{list: list, isInit: atomic.LoadInt32(&isInit), wait: wait}},
+			action: &action{actionType: actDelay, data: data},
 			value:  value,
 		}
-
-		atomic.SwapInt32(&isInit, 1)
 
 		return v
 	}
@@ -136,25 +134,48 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 }
 
 func (chain *Chain) Throttle(wait time.Duration) *Chain {
-	list := syncList{
+	list := &syncList{
 		RWMutex: &sync.RWMutex{},
 		List:    list.New(),
 	}
 
-	var isInit int32
+	data := &delayData{list: list, wait: wait}
 
 	throttleCallback := func(value interface{}) interface{} {
 		v := &specificValue{
-			action: &action{actionType: actThrottle, data: &delayData{list: list, isInit: atomic.LoadInt32(&isInit), wait: wait}},
+			action: &action{actionType: actThrottle, data: data},
 			value:  value,
 		}
-
-		atomic.SwapInt32(&isInit, 1)
 
 		return v
 	}
 
 	newNode := chain.addMethod(actionMethod, throttleCallback)
+
+	return chain.createNewChain(newNode)
+}
+
+func (chain *Chain) Debounce(wait time.Duration) *Chain {
+	list := &syncList{
+		RWMutex: &sync.RWMutex{},
+		List:    list.New(),
+	}
+
+	data := &debounceData{list: list, wait: wait, expTime: &atomic.Value{}}
+
+	debounceCallback := func(value interface{}) interface{} {
+		v := &specificValue{
+			action: &action{
+				actionType: actDebounce,
+				data:       data,
+			},
+			value: value,
+		}
+
+		return v
+	}
+
+	newNode := chain.addMethod(actionMethod, debounceCallback)
 
 	return chain.createNewChain(newNode)
 }

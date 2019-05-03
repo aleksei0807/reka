@@ -12,7 +12,7 @@ func (stream *Stream) OnValues() *Chain {
 	return &chain
 }
 
-func (stream *Stream) delayLoop(arr []*node, wait time.Duration, values syncList) {
+func (stream *Stream) delayLoop(arr []*node, wait time.Duration, values *syncList) {
 	for {
 		if runtime.GOMAXPROCS(0) == 1 {
 			runtime.Gosched()
@@ -43,7 +43,7 @@ func (stream *Stream) delayLoop(arr []*node, wait time.Duration, values syncList
 	}
 }
 
-func (stream *Stream) throttleLoop(arr []*node, wait time.Duration, values syncList) {
+func (stream *Stream) throttleLoop(arr []*node, wait time.Duration, values *syncList) {
 	for {
 		if runtime.GOMAXPROCS(0) == 1 {
 			runtime.Gosched()
@@ -74,6 +74,47 @@ func (stream *Stream) throttleLoop(arr []*node, wait time.Duration, values syncL
 	}
 }
 
+func (stream *Stream) debounceLoop(arr []*node, data *debounceData) {
+	var prevExpTime time.Time
+	for {
+		if runtime.GOMAXPROCS(0) == 1 {
+			runtime.Gosched()
+		}
+
+		expTime := data.expTime.Load().(time.Time)
+		if prevExpTime == expTime {
+			continue
+		}
+		isExp := time.Now().After(expTime)
+
+		if isExp {
+			prevExpTime = expTime
+			data.list.RLock()
+			listLen := data.list.Len()
+			data.list.RUnlock()
+			if listLen > 0 {
+				data.list.RLock()
+				x := data.list.Front().Value
+				data.list.RUnlock()
+				for _, child := range arr {
+					child.RLock()
+					v, newAction := child.method(x)
+
+					childs := child.childs
+					child.RUnlock()
+
+					if len(childs) > 0 {
+						stream.forEach(childs, v, newAction)
+					}
+				}
+				data.list.Lock()
+				data.list.Remove(data.list.Front())
+				data.list.Unlock()
+			}
+		}
+	}
+}
+
 func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 	if action.actionType != actStop {
 		switch action.actionType {
@@ -95,6 +136,7 @@ func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 			actionData := action.data.(*delayData)
 			if atomic.LoadInt32(&actionData.isInit) == 0 {
 				go stream.delayLoop(arr, actionData.wait, actionData.list)
+				atomic.SwapInt32(&actionData.isInit, 1)
 			}
 			actionData.list.Lock()
 			actionData.list.PushBack(value)
@@ -104,6 +146,19 @@ func (stream *Stream) forEach(arr []*node, value interface{}, action *action) {
 			actionData := action.data.(*delayData)
 			if atomic.LoadInt32(&actionData.isInit) == 0 {
 				go stream.throttleLoop(arr, actionData.wait, actionData.list)
+				atomic.SwapInt32(&actionData.isInit, 1)
+			}
+			actionData.list.Lock()
+			actionData.list.Init()
+			actionData.list.PushFront(value)
+			actionData.list.Unlock()
+
+		case actDebounce:
+			actionData := action.data.(*debounceData)
+			actionData.expTime.Store(time.Now().Add(actionData.wait))
+			if atomic.LoadInt32(&actionData.isInit) == 0 {
+				go stream.debounceLoop(arr, actionData)
+				atomic.SwapInt32(&actionData.isInit, 1)
 			}
 			actionData.list.Lock()
 			actionData.list.Init()

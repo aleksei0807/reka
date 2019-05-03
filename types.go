@@ -3,6 +3,7 @@ package reka
 import (
 	"container/list"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/apex/log"
@@ -41,6 +42,7 @@ const (
 	actStop
 	actDelay
 	actThrottle
+	actDebounce
 	actShard
 )
 
@@ -62,5 +64,12 @@ type syncList struct {
 type delayData struct {
 	wait   time.Duration
 	isInit int32
-	list   syncList
+	list   *syncList
+}
+
+type debounceData struct {
+	wait    time.Duration
+	isInit  int32
+	list    *syncList
+	expTime *atomic.Value
 }
