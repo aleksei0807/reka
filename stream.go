@@ -111,6 +111,8 @@ func (stream *Stream) debounceLoop(arr []*node, data *debounceData) {
 				data.list.Remove(data.list.Front())
 				data.list.Unlock()
 			}
+		} else {
+			time.Sleep(expTime.Sub(time.Now()))
 		}
 	}
 }
