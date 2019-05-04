@@ -61,7 +61,7 @@ type syncList struct {
 	*list.List
 }
 
-type delayData struct {
+type waitData struct {
 	wait   time.Duration
 	isInit int32
 	list   *syncList

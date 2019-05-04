@@ -117,12 +117,15 @@ func (chain *Chain) Delay(wait time.Duration) *Chain {
 		List:    list.New(),
 	}
 
-	data := &delayData{list: list, wait: wait}
+	data := &waitData{list: list, wait: wait}
 
 	delayCallback := func(value interface{}) interface{} {
 		v := &specificValue{
-			action: &action{actionType: actDelay, data: data},
-			value:  value,
+			action: &action{
+				actionType: actDelay,
+				data:       data,
+			},
+			value: value,
 		}
 
 		return v
@@ -139,12 +142,15 @@ func (chain *Chain) Throttle(wait time.Duration) *Chain {
 		List:    list.New(),
 	}
 
-	data := &delayData{list: list, wait: wait}
+	data := &waitData{list: list, wait: wait}
 
 	throttleCallback := func(value interface{}) interface{} {
 		v := &specificValue{
-			action: &action{actionType: actThrottle, data: data},
-			value:  value,
+			action: &action{
+				actionType: actThrottle,
+				data:       data,
+			},
+			value: value,
 		}
 
 		return v
